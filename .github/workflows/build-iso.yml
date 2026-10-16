@@ -34,14 +34,19 @@ jobs:
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           
-          # 5. Setup the local repository directory
-          mkdir -p /root/localrepo
-          chmod 777 /root/localrepo
+          # 5. Setup the local repository in a world-accessible location
+          # (/root has mode 0700 by default, so /var/localrepo is used instead)
+          mkdir -p /var/localrepo
+          chmod 777 /var/localrepo
           
           # 6. Add the local repository to pacman.conf so dependencies can be found
           echo "[localrepo]" >> /etc/pacman.conf
           echo "SigLevel = Optional TrustAll" >> /etc/pacman.conf
-          echo "Server = file:///root/localrepo" >> /etc/pacman.conf
+          echo "Server = file:///var/localrepo" >> /etc/pacman.conf
+          
+          # 7. Initialize an empty repo database so pacman doesn't complain
+          cd /var/localrepo
+          repo-add localrepo.db.tar.gz
 
       - name: Build NVIDIA 580xx AUR packages
         run: |
@@ -55,7 +60,7 @@ jobs:
               set -e
               cd /tmp
               rm -rf \"$pkg\"
-              for i in {1..3}; do
+              for i in 1 2 3; do
                 git clone https://aur.archlinux.org/\"$pkg\".git && break || sleep 5
               done
               cd \"$pkg\"
@@ -66,16 +71,16 @@ jobs:
               fi
               
               makepkg -s --noconfirm
-              cp *.pkg.tar.zst /root/localrepo/
+              cp *.pkg.tar.zst /var/localrepo/
             "
             
             # Update the local repo database
-            cd /root/localrepo
+            cd /var/localrepo
             repo-add localrepo.db.tar.gz *.pkg.tar.zst
             
             # Install EVERY package currently in the local repo to satisfy future dependencies
             pacman -Sy --noconfirm
-            pacman -U --noconfirm /root/localrepo/*.pkg.tar.zst || true
+            pacman -U --noconfirm /var/localrepo/*.pkg.tar.zst || true
             echo "::endgroup::"
           }
 
@@ -97,7 +102,7 @@ jobs:
             cmake --build build/ --parallel \$(nproc)
             DESTDIR=/tmp/shadps4-pkg cmake --install build/
             cd /tmp/shadps4-pkg
-            tar -czf /root/localrepo/shadps4-custom.tar.gz .
+            tar -czf /var/localrepo/shadps4-custom.tar.gz .
           "
 
       - name: Build ISO
