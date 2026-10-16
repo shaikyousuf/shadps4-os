@@ -88,7 +88,6 @@ qt6-5compat
 # ── shadPS4 Runtime Dependencies ────────────────────────────
 sdl2
 openal
-jack2
 sndio
 libpng
 ffmpeg
@@ -114,3 +113,5 @@ noto-fonts-emoji
 # ── Miscellaneous ───────────────────────────────────────────
 polkit
 brightnessctl
+iptables-nft
+qt6-multimedia-ffmpeg
