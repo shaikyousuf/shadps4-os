@@ -1,0 +1,27 @@
+[Unit]
+Description=shadPS4 Emulation Console
+After=network.target systemd-user-sessions.service graphical.target
+Wants=systemd-user-sessions.service
+Conflicts=display-manager.service
+
+[Service]
+Type=simple
+User=ps4
+Group=ps4
+Environment=HOME=/home/ps4
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=__NV_PRIME_RENDER_OFFLOAD=1
+Environment=__VK_LAYER_NV_optimus=NVIDIA_only
+Environment=__GLX_VENDOR_LIBRARY_NAME=nvidia
+Environment=VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json
+Environment=XDG_SESSION_TYPE=wayland
+ExecStart=/usr/bin/cage -- /usr/local/bin/ps4-launch
+Restart=on-failure
+RestartSec=3
+StandardInput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+
+[Install]
+WantedBy=multi-user.target
