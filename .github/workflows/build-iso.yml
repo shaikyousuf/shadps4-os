@@ -18,19 +18,23 @@ jobs:
 
       - name: Install dependencies and setup builder
         run: |
-          # 1. Initialize the pacman keyring (CRITICAL for Arch containers)
+          # 1. Initialize the pacman keyring
           pacman-key --init
           pacman-key --populate archlinux
           
-          # 2. Update and install required tools
+          # 2. Enable the multilib repository (REQUIRED for lib32 packages)
+          echo "[multilib]" >> /etc/pacman.conf
+          echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+          
+          # 3. Update and install required tools
           pacman -Syu --noconfirm
           pacman -S --noconfirm archiso git sudo base-devel linux-zen-headers
           
-          # 3. Create the builder user (makepkg refuses to run as root)
+          # 4. Create the builder user (makepkg refuses to run as root)
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           
-          # 4. Setup the local repository directory
+          # 5. Setup the local repository directory
           mkdir -p /root/localrepo
           chmod 777 /root/localrepo
 
