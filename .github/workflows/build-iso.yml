@@ -26,47 +26,49 @@ jobs:
           echo "[multilib]" >> /etc/pacman.conf
           echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
           
-          # 3. Update and install required tools
+          # 3. Update and install required tools, INCLUDING linux-zen-headers and dkms
           pacman -Syu --noconfirm
-          pacman -S --noconfirm archiso git sudo base-devel linux-zen-headers
+          pacman -S --noconfirm archiso git sudo base-devel linux-zen linux-zen-headers dkms
           
           # 4. Create the builder user
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           
           # 5. Setup the local repository in a world-accessible location
-          # (/root has mode 0700 by default, so /var/localrepo is used instead)
           mkdir -p /var/localrepo
           chmod 777 /var/localrepo
           
-          # 6. Add the local repository to pacman.conf so dependencies can be found
+          # 6. Initialize the local repository database
+          touch /var/localrepo/localrepo.db.tar.gz
+          cd /var/localrepo
+          repo-add localrepo.db.tar.gz || true
+          
+          # 7. Add the local repository to pacman.conf
           echo "[localrepo]" >> /etc/pacman.conf
           echo "SigLevel = Optional TrustAll" >> /etc/pacman.conf
           echo "Server = file:///var/localrepo" >> /etc/pacman.conf
-          
-          # 7. Initialize an empty repo database so pacman doesn't complain
-          cd /var/localrepo
-          repo-add localrepo.db.tar.gz
 
       - name: Build NVIDIA 580xx AUR packages
+        shell: bash
         run: |
           # Function to clone, build, and install an AUR package
           build_aur_pkg() {
             local pkg="$1"
             echo "::group::Building $pkg"
             
-            # Clone with a retry loop to handle transient AUR glitches
+            # Clone with a retry loop and a longer delay to handle AUR rate-limiting
             sudo -u builder -H bash -c "
               set -e
               cd /tmp
               rm -rf \"$pkg\"
-              for i in 1 2 3; do
-                git clone https://aur.archlinux.org/\"$pkg\".git && break || sleep 5
+              for i in 1 2 3 4 5; do
+                echo 'Attempt $i to clone $pkg...'
+                git clone --depth 1 https://aur.archlinux.org/\"$pkg\".git && break || sleep 15
               done
               cd \"$pkg\"
               
               if [ ! -f 'PKGBUILD' ]; then
-                echo '::error:: PKGBUILD not found for $pkg. The AUR repository is empty or the package name is wrong.'
+                echo '::error:: PKGBUILD not found for $pkg after multiple attempts.'
                 exit 1
               fi
               
@@ -78,13 +80,14 @@ jobs:
             cd /var/localrepo
             repo-add localrepo.db.tar.gz *.pkg.tar.zst
             
-            # Install EVERY package currently in the local repo to satisfy future dependencies
+            # Install EVERY package currently in the local repo
             pacman -Sy --noconfirm
             pacman -U --noconfirm /var/localrepo/*.pkg.tar.zst || true
             echo "::endgroup::"
           }
 
           # Build packages in dependency order
+          # Start with the utils package, which is needed by others
           build_aur_pkg nvidia-580xx-utils
           build_aur_pkg lib32-nvidia-580xx-utils
           build_aur_pkg nvidia-580xx-dkms
@@ -92,6 +95,7 @@ jobs:
           build_aur_pkg nvidia-580xx-settings
 
       - name: Build shadPS4 from source
+        shell: bash
         run: |
           sudo -u builder -H bash -c "
             set -e
@@ -106,6 +110,7 @@ jobs:
           "
 
       - name: Build ISO
+        shell: bash
         run: |
           mkdir -p /tmp/iso-work /tmp/iso-out
           mkarchiso -v -w /tmp/iso-work -o /tmp/iso-out profile/
