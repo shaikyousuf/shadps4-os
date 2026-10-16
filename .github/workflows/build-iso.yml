@@ -22,7 +22,7 @@ jobs:
           pacman-key --init
           pacman-key --populate archlinux
           
-          # 2. Enable the multilib repository (REQUIRED for lib32 packages)
+          # 2. Enable the multilib repository
           echo "[multilib]" >> /etc/pacman.conf
           echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
           
@@ -30,43 +30,66 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm archiso git sudo base-devel linux-zen-headers
           
-          # 4. Create the builder user (makepkg refuses to run as root)
+          # 4. Create the builder user
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           
           # 5. Setup the local repository directory
           mkdir -p /root/localrepo
           chmod 777 /root/localrepo
+          
+          # 6. Add the local repository to pacman.conf so dependencies can be found
+          echo "[localrepo]" >> /etc/pacman.conf
+          echo "SigLevel = Optional TrustAll" >> /etc/pacman.conf
+          echo "Server = file:///root/localrepo" >> /etc/pacman.conf
 
       - name: Build NVIDIA 580xx AUR packages
         run: |
-          # Function to clone and build an AUR package
+          # Function to clone, build, and install an AUR package
           build_aur_pkg() {
             local pkg="$1"
-            su - builder -c "
+            echo "::group::Building $pkg"
+            
+            # Clone with a retry loop to handle transient AUR glitches
+            sudo -u builder -H bash -c "
+              set -e
               cd /tmp
               rm -rf \"$pkg\"
-              git clone https://aur.archlinux.org/\"$pkg\".git
+              for i in {1..3}; do
+                git clone https://aur.archlinux.org/\"$pkg\".git && break || sleep 5
+              done
               cd \"$pkg\"
+              
+              if [ ! -f 'PKGBUILD' ]; then
+                echo '::error:: PKGBUILD not found for $pkg. The AUR repository is empty or the package name is wrong.'
+                exit 1
+              fi
+              
               makepkg -s --noconfirm
-              cp *.pkg.tar.zst /root/localrepo/ 2>/dev/null || true
+              cp *.pkg.tar.zst /root/localrepo/
             "
+            
+            # Update the local repo database
+            cd /root/localrepo
+            repo-add localrepo.db.tar.gz *.pkg.tar.zst
+            
+            # Install EVERY package currently in the local repo to satisfy future dependencies
+            pacman -Sy --noconfirm
+            pacman -U --noconfirm /root/localrepo/*.pkg.tar.zst || true
+            echo "::endgroup::"
           }
 
-          # Build each package
-          build_aur_pkg nvidia-580xx-dkms
+          # Build packages in dependency order
           build_aur_pkg nvidia-580xx-utils
           build_aur_pkg lib32-nvidia-580xx-utils
-          build_aur_pkg nvidia-580xx-settings
+          build_aur_pkg nvidia-580xx-dkms
           build_aur_pkg opencl-nvidia-580xx
-
-          # Create the local repository database
-          cd /root/localrepo
-          repo-add localrepo.db.tar.gz *.pkg.tar.zst
+          build_aur_pkg nvidia-580xx-settings
 
       - name: Build shadPS4 from source
         run: |
-          su - builder -c "
+          sudo -u builder -H bash -c "
+            set -e
             cd /tmp
             git clone --recursive https://github.com/shadps4-emu/shadPS4.git
             cd shadPS4
