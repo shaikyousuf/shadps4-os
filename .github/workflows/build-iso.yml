@@ -45,7 +45,8 @@ jobs:
             vulkan-headers vulkan-icd-loader lib32-vulkan-icd-loader \
             mesa libglvnd libx11 libxrandr libxinerama libxcursor libxi \
             libxkbcommon libxkbcommon-x11 wayland wayland-protocols \
-            boost rapidjson gtk3 libxv libvdpau libxext
+            boost rapidjson gtk3 libxv libvdpau libxext \
+            libxscrnsaver libxtst libxfixes libxrender
             
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
