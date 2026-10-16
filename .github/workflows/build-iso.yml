@@ -18,46 +18,47 @@ jobs:
 
       - name: Install dependencies and setup builder
         run: |
+          # 1. Initialize the pacman keyring (CRITICAL for Arch containers)
+          pacman-key --init
+          pacman-key --populate archlinux
+          
+          # 2. Update and install required tools
           pacman -Syu --noconfirm
           pacman -S --noconfirm archiso git sudo base-devel linux-zen-headers
+          
+          # 3. Create the builder user (makepkg refuses to run as root)
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          
+          # 4. Setup the local repository directory
           mkdir -p /root/localrepo
           chmod 777 /root/localrepo
 
       - name: Build NVIDIA 580xx AUR packages
         run: |
-          su - builder -c "
-            cd /tmp
-            git clone https://aur.archlinux.org/nvidia-580xx-dkms.git
-            cd nvidia-580xx-dkms && makepkg -s --noconfirm
-            cp *.pkg.tar.zst /root/localrepo/
-          "
-          su - builder -c "
-            cd /tmp
-            git clone https://aur.archlinux.org/nvidia-580xx-utils.git
-            cd nvidia-580xx-utils && makepkg -s --noconfirm
-            cp *.pkg.tar.zst /root/localrepo/
-          "
-          su - builder -c "
-            cd /tmp
-            git clone https://aur.archlinux.org/lib32-nvidia-580xx-utils.git
-            cd lib32-nvidia-580xx-utils && makepkg -s --noconfirm
-            cp *.pkg.tar.zst /root/localrepo/
-          "
-          su - builder -c "
-            cd /tmp
-            git clone https://aur.archlinux.org/nvidia-580xx-settings.git
-            cd nvidia-580xx-settings && makepkg -s --noconfirm
-            cp *.pkg.tar.zst /root/localrepo/
-          "
-          su - builder -c "
-            cd /tmp
-            git clone https://aur.archlinux.org/opencl-nvidia-580xx.git
-            cd opencl-nvidia-580xx && makepkg -s --noconfirm
-            cp *.pkg.tar.zst /root/localrepo/
-          "
-          cd /root/localrepo && repo-add localrepo.db.tar.gz *.pkg.tar.zst
+          # Function to clone and build an AUR package
+          build_aur_pkg() {
+            local pkg="$1"
+            su - builder -c "
+              cd /tmp
+              rm -rf \"$pkg\"
+              git clone https://aur.archlinux.org/\"$pkg\".git
+              cd \"$pkg\"
+              makepkg -s --noconfirm
+              cp *.pkg.tar.zst /root/localrepo/ 2>/dev/null || true
+            "
+          }
+
+          # Build each package
+          build_aur_pkg nvidia-580xx-dkms
+          build_aur_pkg nvidia-580xx-utils
+          build_aur_pkg lib32-nvidia-580xx-utils
+          build_aur_pkg nvidia-580xx-settings
+          build_aur_pkg opencl-nvidia-580xx
+
+          # Create the local repository database
+          cd /root/localrepo
+          repo-add localrepo.db.tar.gz *.pkg.tar.zst
 
       - name: Build shadPS4 from source
         run: |
