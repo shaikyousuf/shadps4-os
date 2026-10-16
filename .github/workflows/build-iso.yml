@@ -16,37 +16,59 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ─────────────────────────────────────────────────────
+      # Restore cached NVIDIA packages. To force a rebuild,
+      # change v1 → v2 below.
+      # ─────────────────────────────────────────────────────
+      - name: Cache NVIDIA packages
+        id: cache-nvidia
+        uses: actions/cache@v4
+        with:
+          path: /var/localrepo
+          key: nvidia-580xx-580.178.04-v1
+
       - name: Install dependencies and setup builder
         run: |
-          # 1. Initialize the pacman keyring
           pacman-key --init
           pacman-key --populate archlinux
           
-          # 2. Enable the multilib repository
           echo "[multilib]" >> /etc/pacman.conf
           echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
           
-          # 3. Update and install required tools
           pacman -Syu --noconfirm
-          pacman -S --noconfirm archiso git sudo base-devel linux-zen linux-zen-headers dkms
-          
-          # 4. Create the builder user
+          pacman -S --noconfirm \
+            archiso git sudo base-devel linux-zen linux-zen-headers dkms \
+            cmake ninja clang llvm lld pkgconf ccache \
+            sdl2 sdl3 openal jack2 sndio libevdev \
+            libpng ffmpeg zlib openssl libedit \
+            qt6-base qt6-declarative qt6-multimedia qt6-tools qt6-svg \
+            qt6-wayland qt6-5compat qt6-websockets qt6-translations \
+            vulkan-headers vulkan-icd-loader lib32-vulkan-icd-loader \
+            mesa libglvnd libx11 libxrandr libxinerama libxcursor libxi \
+            libxkbcommon libxkbcommon-x11 wayland wayland-protocols \
+            boost rapidjson
+            
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           
-          # 5. Setup the local repository
           mkdir -p /var/localrepo
           chmod 777 /var/localrepo
-          touch /var/localrepo/localrepo.db.tar.gz
-          cd /var/localrepo
-          repo-add localrepo.db.tar.gz || true
           
-          # 6. Add the local repository to pacman.conf
+          # Only create an empty DB if the cache didn't restore one
+          if [ ! -f /var/localrepo/localrepo.db.tar.gz ]; then
+            cd /var/localrepo
+            repo-add localrepo.db.tar.gz || true
+          fi
+          
           echo "[localrepo]" >> /etc/pacman.conf
           echo "SigLevel = Optional TrustAll" >> /etc/pacman.conf
           echo "Server = file:///var/localrepo" >> /etc/pacman.conf
 
+      # ─────────────────────────────────────────────────────
+      # Build NVIDIA ONLY if the cache missed
+      # ─────────────────────────────────────────────────────
       - name: Build NVIDIA 580xx AUR packages
+        if: steps.cache-nvidia.outputs.cache-hit != 'true'
         shell: bash
         run: |
           build_aur_pkg() {
@@ -71,25 +93,29 @@ jobs:
               makepkg -s --noconfirm
               cp *.pkg.tar.zst /var/localrepo/
             "
-            
-            # Update the local repo database
-            cd /var/localrepo
-            repo-add localrepo.db.tar.gz *.pkg.tar.zst
-            
-            # Install ALL packages currently in the local repo
-            pacman -Sy --noconfirm
-            pacman -U --noconfirm /var/localrepo/*.pkg.tar.zst || true
             echo "::endgroup::"
           }
 
-          # IMPORTANT: These PKGBUILDs are SPLIT packages!
-          # - nvidia-580xx-utils produces: nvidia-580xx-utils, nvidia-580xx-dkms, AND opencl-nvidia-580xx
-          # - lib32-nvidia-580xx-utils produces: lib32-nvidia-580xx-utils AND lib32-opencl-nvidia-580xx
-          # Do NOT try to build the standalone dkms/opencl AUR repos - they are stubs.
           build_aur_pkg nvidia-580xx-utils
           build_aur_pkg lib32-nvidia-580xx-utils
           build_aur_pkg nvidia-580xx-settings
 
+      # ─────────────────────────────────────────────────────
+      # Install NVIDIA packages (runs on cache HIT and MISS)
+      # ─────────────────────────────────────────────────────
+      - name: Install NVIDIA packages
+        shell: bash
+        run: |
+          cd /var/localrepo
+          rm -f localrepo.db* localrepo.files*
+          repo-add localrepo.db.tar.gz *.pkg.tar.zst
+          
+          pacman -Sy --noconfirm
+          pacman -U --noconfirm /var/localrepo/*.pkg.tar.zst
+
+      # ─────────────────────────────────────────────────────
+      # Build shadPS4 from source
+      # ─────────────────────────────────────────────────────
       - name: Build shadPS4 from source
         shell: bash
         run: |
@@ -98,7 +124,12 @@ jobs:
             cd /tmp
             git clone --recursive https://github.com/shadps4-emu/shadPS4.git
             cd shadPS4
-            cmake -S . -B build/ -DENABLE_QT_GUI=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+            cmake -S . -B build/ \
+              -DENABLE_QT_GUI=ON \
+              -DCMAKE_C_COMPILER=clang \
+              -DCMAKE_CXX_COMPILER=clang++ \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_INSTALL_PREFIX=/usr
             cmake --build build/ --parallel \$(nproc)
             DESTDIR=/tmp/shadps4-pkg cmake --install build/
             cd /tmp/shadps4-pkg
