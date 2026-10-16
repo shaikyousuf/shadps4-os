@@ -1,0 +1,20 @@
+#!/bin/bash
+set -euo pipefail
+
+export __NV_PRIME_RENDER_OFFLOAD=1
+export __VK_LAYER_NV_optimus=NVIDIA_only
+export __GLX_VENDOR_LIBRARY_NAME=nvidia
+export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json
+export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
+export MESA_GL_VERSION_OVERRIDE=4.6
+export MESA_GLSL_VERSION_OVERRIDE=460
+export vblank_mode=0
+
+SHADPS4_BIN="/usr/bin/shadps4"
+
+if [[ ! -x "$SHADPS4_BIN" ]]; then
+    echo "Error: shadPS4 not found ($SHADPS4_BIN)" >&2
+    exec /bin/bash
+fi
+
+exec prime-run "$SHADPS4_BIN" "$@"
