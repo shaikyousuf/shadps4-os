@@ -17,7 +17,8 @@ jobs:
         uses: actions/checkout@v4
 
       # ─────────────────────────────────────────────────────
-      # Cache NVIDIA packages. Bump v1 → v2 to force rebuild.
+      # Cache 1: NVIDIA packages (skip 9-min driver rebuild)
+      # Bump v2 → v3 to force NVIDIA rebuild
       # ─────────────────────────────────────────────────────
       - name: Cache NVIDIA packages
         id: cache-nvidia
@@ -25,6 +26,17 @@ jobs:
         with:
           path: /var/localrepo
           key: nvidia-580xx-580.178.04-v2
+
+      # ─────────────────────────────────────────────────────
+      # Cache 2: shadPS4 source + build (skip 45-min recompile)
+      # Bump v1 → v2 to force shadPS4 rebuild
+      # ─────────────────────────────────────────────────────
+      - name: Cache shadPS4 source and build
+        id: cache-shadps4
+        uses: actions/cache@v4
+        with:
+          path: /tmp/shadPS4
+          key: shadps4-build-v1
 
       - name: Install dependencies and setup builder
         run: |
@@ -54,7 +66,6 @@ jobs:
           mkdir -p /var/localrepo
           chmod 777 /var/localrepo
           
-          # Create a fresh empty DB if the cache didn't restore one
           cd /var/localrepo
           if [ ! -f localrepo.db.tar.gz ]; then
             repo-add localrepo.db.tar.gz
@@ -63,10 +74,14 @@ jobs:
           echo "[localrepo]" >> /etc/pacman.conf
           echo "SigLevel = Optional TrustAll" >> /etc/pacman.conf
           echo "Server = file:///var/localrepo" >> /etc/pacman.conf
+          
+          # Fix ownership of restored shadPS4 cache
+          if [ -d /tmp/shadPS4 ]; then
+            chown -R builder:builder /tmp/shadPS4
+          fi
 
       # ─────────────────────────────────────────────────────
-      # Build NVIDIA — each package is registered and installed
-      # immediately so the next package can find its dependencies
+      # Build NVIDIA (only on cache miss)
       # ─────────────────────────────────────────────────────
       - name: Build NVIDIA 580xx AUR packages
         if: steps.cache-nvidia.outputs.cache-hit != 'true'
@@ -95,16 +110,10 @@ jobs:
               cp *.pkg.tar.zst /var/localrepo/
             "
             
-            # Register the new package(s) in the localrepo database
             cd /var/localrepo
             repo-add localrepo.db.tar.gz *.pkg.tar.zst
-            
-            # Force pacman to see the freshly-updated database
             pacman -Sy --noconfirm
-            
-            # Install ALL packages from the localrepo (safe: idempotent)
             pacman -U --noconfirm /var/localrepo/*.pkg.tar.zst || true
-            
             echo "::endgroup::"
           }
 
@@ -113,10 +122,9 @@ jobs:
           build_aur_pkg nvidia-580xx-settings
 
       # ─────────────────────────────────────────────────────
-      # On cache HIT, just install the packages
+      # Install NVIDIA (always — cache hit OR miss)
       # ─────────────────────────────────────────────────────
-      - name: Install cached NVIDIA packages
-        if: steps.cache-nvidia.outputs.cache-hit == 'true'
+      - name: Install NVIDIA packages
         shell: bash
         run: |
           cd /var/localrepo
@@ -126,7 +134,9 @@ jobs:
           pacman -U --noconfirm /var/localrepo/*.pkg.tar.zst
 
       # ─────────────────────────────────────────────────────
-      # Build shadPS4
+      # Build shadPS4 — with cache-aware logic
+      # If the cache restored /tmp/shadPS4, we only need a
+      # quick incremental rebuild (link-only → ~3-5 min)
       # ─────────────────────────────────────────────────────
       - name: Build shadPS4 from source
         shell: bash
@@ -134,27 +144,54 @@ jobs:
           sudo -u builder -H bash -c "
             set -e
             cd /tmp
-            rm -rf shadPS4
-            git clone --recursive https://github.com/shadps4-emu/shadPS4.git
+            
+            # Only clone if the source isn't already restored
+            if [ ! -d shadPS4 ]; then
+              echo '>>> Cloning shadPS4 (cache miss)'
+              git clone --recursive https://github.com/shadps4-emu/shadPS4.git
+            else
+              echo '>>> Using cached shadPS4 source'
+            fi
+            
             cd shadPS4
-            cmake -S . -B build/ \
-              -DENABLE_QT_GUI=ON \
-              -DCMAKE_C_COMPILER=clang \
-              -DCMAKE_CXX_COMPILER=clang++ \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_INSTALL_PREFIX=/usr
+            
+            # Only run cmake config if not already configured
+            if [ ! -f build/CMakeCache.txt ]; then
+              echo '>>> Running CMake configuration (cache miss)'
+              cmake -S . -B build/ \
+                -DENABLE_QT_GUI=ON \
+                -DCMAKE_C_COMPILER=clang \
+                -DCMAKE_CXX_COMPILER=clang++ \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX=/usr
+            else
+              echo '>>> Using cached CMake configuration'
+            fi
+            
+            # Build (incremental if cache restored)
             cmake --build build/ --parallel \$(nproc)
+            
+            # Install into a staging dir
+            rm -rf /tmp/shadps4-pkg
             DESTDIR=/tmp/shadps4-pkg cmake --install build/
+            
+            # Package it up
             cd /tmp/shadps4-pkg
             tar -czf /var/localrepo/shadps4-custom.tar.gz .
           "
 
+      # ─────────────────────────────────────────────────────
+      # Build the ISO
+      # ─────────────────────────────────────────────────────
       - name: Build ISO
         shell: bash
         run: |
           mkdir -p /tmp/iso-work /tmp/iso-out
           mkarchiso -v -w /tmp/iso-work -o /tmp/iso-out profile/
 
+      # ─────────────────────────────────────────────────────
+      # Upload the ISO
+      # ─────────────────────────────────────────────────────
       - name: Upload ISO as Artifact
         uses: actions/upload-artifact@v4
         with:
