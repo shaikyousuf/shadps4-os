@@ -16,8 +16,9 @@ Environment=__GLX_VENDOR_LIBRARY_NAME=nvidia
 Environment=VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json
 Environment=XDG_SESSION_TYPE=wayland
 ExecStart=/usr/bin/cage -- /usr/local/bin/ps4-launch
-Restart=on-failure
+Restart=always
 RestartSec=3
+WatchdogSec=60
 StandardInput=tty
 TTYPath=/dev/tty1
 TTYReset=yes
