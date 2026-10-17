@@ -6,15 +6,32 @@ export __VK_LAYER_NV_optimus=NVIDIA_only
 export __GLX_VENDOR_LIBRARY_NAME=nvidia
 export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json
 export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
-export MESA_GL_VERSION_OVERRIDE=4.6
-export MESA_GLSL_VERSION_OVERRIDE=460
 export vblank_mode=0
 
 SHADPS4_BIN="/usr/bin/shadps4"
 
+LOG_DIR="/var/log/shadps4"
+if mountpoint -q /mnt/games || [ -d "/mnt/games" ]; then
+    LOG_DIR="/mnt/games/logs"
+fi
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/crash_$(date +%Y%m%d_%H%M%S).log"
+
 if [[ ! -x "$SHADPS4_BIN" ]]; then
-    echo "Error: shadPS4 not found ($SHADPS4_BIN)" >&2
+    echo "Error: shadPS4 executable not found at $SHADPS4_BIN" | tee -a "$LOG_FILE"
     exec /bin/bash
 fi
 
-exec prime-run "$SHADPS4_BIN" "$@"
+echo "Launching shadPS4... Logs: $LOG_FILE"
+set +e
+stdbuf -oL -eL prime-run "$SHADPS4_BIN" "$@" 2>&1 | tee -a "$LOG_FILE"
+EXIT_CODE=${PIPESTATUS[0]}
+set -e
+
+if [ "$EXIT_CODE" -ne 0 ] && [ "$EXIT_CODE" -ne 130 ]; then
+    echo "=================================================="
+    echo "❌ shadPS4 crashed with exit code $EXIT_CODE!"
+    echo "Log preserved at: $LOG_FILE"
+    echo "=================================================="
+    exec /bin/bash
+fi
