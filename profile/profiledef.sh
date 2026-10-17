@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034
 
 iso_name="shadps4-console"
-iso_label="SHADPS4_$(date +%Y%m)"
+iso_label="SHADPS4_CONSOLE"
 iso_publisher="Custom Arch Linux <https://archlinux.org>"
 iso_application="shadPS4 Emulation Console"
 iso_version="$(date +%Y.%m.%d)"
