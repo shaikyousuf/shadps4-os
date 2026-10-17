@@ -30,4 +30,10 @@ if [ -f /var/localrepo/shadps4-custom.tar.gz ]; then
     echo "shadPS4 installed successfully."
 fi
 
+# Give ps4 user sudo access and fix log directory permissions
+usermod -aG wheel ps4
+sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+mkdir -p /var/log/shadps4
+chown -R ps4:ps4 /var/log/shadps4
+
 echo "shadPS4 Console customization complete."
