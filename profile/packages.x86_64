@@ -16,6 +16,7 @@ mkinitcpio-archiso
 efibootmgr
 dosfstools
 gptfdisk
+syslinux
 
 # ── Filesystem Tools ────────────────────────────────────────
 e2fsprogs
