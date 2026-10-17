@@ -5,6 +5,11 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# This cancels older builds if you push multiple commits quickly
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,8 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ─────────────────────────────────────────────────────
-      # Cache 1: NVIDIA packages (skip 9-min driver rebuild)
-      # Bump v2 → v3 to force NVIDIA rebuild
+      # Caches: These keys match your 2.1GB and 570MB caches!
       # ─────────────────────────────────────────────────────
       - name: Cache NVIDIA packages
         id: cache-nvidia
@@ -27,10 +31,6 @@ jobs:
           path: /var/localrepo
           key: nvidia-580xx-580.178.04-v2
 
-      # ─────────────────────────────────────────────────────
-      # Cache 2: shadPS4 source + build (skip 45-min recompile)
-      # Bump v1 → v2 to force shadPS4 rebuild
-      # ─────────────────────────────────────────────────────
       - name: Cache shadPS4 source and build
         id: cache-shadps4
         uses: actions/cache@v4
@@ -75,14 +75,10 @@ jobs:
           echo "SigLevel = Optional TrustAll" >> /etc/pacman.conf
           echo "Server = file:///var/localrepo" >> /etc/pacman.conf
           
-          # Fix ownership of restored shadPS4 cache
           if [ -d /tmp/shadPS4 ]; then
             chown -R builder:builder /tmp/shadPS4
           fi
 
-      # ─────────────────────────────────────────────────────
-      # Build NVIDIA (only on cache miss)
-      # ─────────────────────────────────────────────────────
       - name: Build NVIDIA 580xx AUR packages
         if: steps.cache-nvidia.outputs.cache-hit != 'true'
         shell: bash
@@ -90,41 +86,26 @@ jobs:
           build_aur_pkg() {
             local pkg="$1"
             echo "::group::Building $pkg"
-            
             sudo -u builder -H bash -c "
               set -e
               cd /tmp
               rm -rf \"$pkg\"
-              for i in 1 2 3 4 5; do
-                echo \"Attempt \$i to clone $pkg...\"
-                git clone https://aur.archlinux.org/\"$pkg\".git && break || sleep 15
-              done
+              git clone https://aur.archlinux.org/\"$pkg\".git
               cd \"$pkg\"
-              
-              if [ ! -f 'PKGBUILD' ]; then
-                echo '::error:: PKGBUILD not found for $pkg after multiple attempts.'
-                exit 1
-              fi
-              
               makepkg -s --noconfirm
               cp *.pkg.tar.zst /var/localrepo/
             "
-            
             cd /var/localrepo
             repo-add localrepo.db.tar.gz *.pkg.tar.zst
             pacman -Sy --noconfirm
             pacman -U --noconfirm /var/localrepo/*.pkg.tar.zst || true
             echo "::endgroup::"
           }
-
           build_aur_pkg nvidia-580xx-utils
           build_aur_pkg lib32-nvidia-580xx-utils
           build_aur_pkg nvidia-580xx-settings
 
-      # ─────────────────────────────────────────────────────
-      # Install NVIDIA (always — cache hit OR miss)
-      # ─────────────────────────────────────────────────────
-      - name: Install NVIDIA packages
+      - name: Install NVIDIA packages (from cache or fresh build)
         shell: bash
         run: |
           cd /var/localrepo
@@ -133,65 +114,35 @@ jobs:
           pacman -Sy --noconfirm
           pacman -U --noconfirm /var/localrepo/*.pkg.tar.zst
 
-      # ─────────────────────────────────────────────────────
-      # Build shadPS4 — with cache-aware logic
-      # If the cache restored /tmp/shadPS4, we only need a
-      # quick incremental rebuild (link-only → ~3-5 min)
-      # ─────────────────────────────────────────────────────
       - name: Build shadPS4 from source
         shell: bash
         run: |
           sudo -u builder -H bash -c "
             set -e
             cd /tmp
-            
-            # Only clone if the source isn't already restored
             if [ ! -d shadPS4 ]; then
-              echo '>>> Cloning shadPS4 (cache miss)'
               git clone --recursive https://github.com/shadps4-emu/shadPS4.git
-            else
-              echo '>>> Using cached shadPS4 source'
             fi
-            
             cd shadPS4
-            
-            # Only run cmake config if not already configured
             if [ ! -f build/CMakeCache.txt ]; then
-              echo '>>> Running CMake configuration (cache miss)'
-              cmake -S . -B build/ \
-                -DENABLE_QT_GUI=ON \
-                -DCMAKE_C_COMPILER=clang \
-                -DCMAKE_CXX_COMPILER=clang++ \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_INSTALL_PREFIX=/usr
-            else
-              echo '>>> Using cached CMake configuration'
+              cmake -S . -B build/ -DENABLE_QT_GUI=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
             fi
-            
-            # Build (incremental if cache restored)
             cmake --build build/ --parallel \$(nproc)
-            
-            # Install into a staging dir
             rm -rf /tmp/shadps4-pkg
             DESTDIR=/tmp/shadps4-pkg cmake --install build/
-            
-            # Package it up
             cd /tmp/shadps4-pkg
             tar -czf /var/localrepo/shadps4-custom.tar.gz .
           "
 
-      # ─────────────────────────────────────────────────────
-      # Build the ISO
-      # ─────────────────────────────────────────────────────
       - name: Build ISO
         shell: bash
         run: |
           mkdir -p /tmp/iso-work /tmp/iso-out
+          # Copy the shadPS4 binary into the ISO filesystem before building
+          mkdir -p profile/airootfs/var/localrepo/
+          cp /var/localrepo/shadps4-custom.tar.gz profile/airootfs/var/localrepo/
           mkarchiso -v -w /tmp/iso-work -o /tmp/iso-out profile/
 
-      # ─────────────────────────────────────────────────────
-      # Upload the ISO
-      # ─────────────────────────────────────────────────────
       - name: Upload ISO as Artifact
         uses: actions/upload-artifact@v4
         with:
