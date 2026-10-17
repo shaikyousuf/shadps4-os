@@ -1,0 +1,2 @@
+ACTION=="add", SUBSYSTEM=="block", ENV{ID_FS_LABEL}=="GAMES", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /mnt/games"
+ACTION=="remove", SUBSYSTEM=="block", ENV{ID_FS_LABEL}=="GAMES", RUN{program}+="/usr/bin/systemd-umount /mnt/games"
