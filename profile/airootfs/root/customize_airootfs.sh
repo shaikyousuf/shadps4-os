@@ -19,4 +19,12 @@ sudo -u ps4 XDG_RUNTIME_DIR=/run/user/1000 systemctl --user enable pipewire pipe
 mkdir -p /home/ps4/.local/share/shadPS4
 chown -R ps4:ps4 /home/ps4/.local
 
+# Extract shadPS4 from the tarball placed by GitHub Actions
+if [ -f /var/localrepo/shadps4-custom.tar.gz ]; then
+    echo "Installing shadPS4 from tarball..."
+    tar -xzf /var/localrepo/shadps4-custom.tar.gz -C /
+    chmod +x /usr/bin/shadps4
+    echo "shadPS4 installed successfully."
+fi
+
 echo "shadPS4 Console customization complete."
