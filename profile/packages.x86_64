@@ -6,6 +6,12 @@ linux-firmware
 intel-ucode
 mkinitcpio
 
+# Required for archiso loopback and device-mapper
+
+device-mapper
+cryptsetup
+mkinitcpio-archiso
+
 # ── Boot and EFI ────────────────────────────────────────────
 efibootmgr
 dosfstools
