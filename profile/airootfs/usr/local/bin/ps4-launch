@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+# --- Wayland & PRIME Offload Variables ---
+export XDG_RUNTIME_DIR=/run/user/1000
+export QT_QPA_PLATFORM=wayland
+export SDL_VIDEODRIVER=wayland
 export __NV_PRIME_RENDER_OFFLOAD=1
 export __VK_LAYER_NV_optimus=NVIDIA_only
 export __GLX_VENDOR_LIBRARY_NAME=nvidia
@@ -10,28 +14,28 @@ export vblank_mode=0
 
 SHADPS4_BIN="/usr/bin/shadps4"
 
+# --- Logging Directory Setup ---
 LOG_DIR="/var/log/shadps4"
 if mountpoint -q /mnt/games || [ -d "/mnt/games" ]; then
     LOG_DIR="/mnt/games/logs"
 fi
-mkdir -p "$LOG_DIR"
+# Safe mkdir that won't crash if permission is denied
+mkdir -p "$LOG_DIR" 2>/dev/null || true
 LOG_FILE="$LOG_DIR/crash_$(date +%Y%m%d_%H%M%S).log"
 
 if [[ ! -x "$SHADPS4_BIN" ]]; then
-    echo "Error: shadPS4 executable not found at $SHADPS4_BIN" | tee -a "$LOG_FILE"
+    echo "Error: shadPS4 executable not found at $SHADPS4_BIN" | tee -a "$LOG_FILE" 2>/dev/null || true
     exec /bin/bash
 fi
 
-echo "Launching shadPS4... Logs: $LOG_FILE"
+echo "Launching shadPS4 Big Picture..."
 set +e
-stdbuf -oL -eL prime-run "$SHADPS4_BIN" "$@" 2>&1 | tee -a "$LOG_FILE"
+# Added the -b flag for Big Picture mode
+stdbuf -oL -eL prime-run "$SHADPS4_BIN" -b "$@" 2>&1 | tee -a "$LOG_FILE" 2>/dev/null
 EXIT_CODE=${PIPESTATUS[0]}
 set -e
 
 if [ "$EXIT_CODE" -ne 0 ] && [ "$EXIT_CODE" -ne 130 ]; then
-    echo "=================================================="
     echo "❌ shadPS4 crashed with exit code $EXIT_CODE!"
-    echo "Log preserved at: $LOG_FILE"
-    echo "=================================================="
     exec /bin/bash
 fi
