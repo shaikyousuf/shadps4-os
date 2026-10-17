@@ -48,7 +48,7 @@ jobs:
           
           pacman -Syu --noconfirm
           pacman -S --noconfirm \
-            archiso git sudo base-devel linux-zen linux-zen-headers dkms \
+            archiso git sudo base-devel linux-zen linux-zen-headers dkms grub \
             cmake ninja clang llvm lld pkgconf ccache \
             sdl2 sdl3 openal jack2 sndio libevdev \
             libpng ffmpeg zlib openssl libedit \
