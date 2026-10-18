@@ -1,6 +1,6 @@
 [Unit]
 Description=shadPS4 Emulation Console
-After=network.target systemd-user-sessions.service
+After=network.target systemd-user-sessions.service graphical.target
 Wants=systemd-user-sessions.service
 Conflicts=display-manager.service
 StartLimitIntervalSec=30
@@ -11,21 +11,19 @@ Type=simple
 User=ps4
 Group=ps4
 PAMName=login
-
-# Set required environment variables
 Environment=HOME=/home/ps4
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=XDG_SESSION_TYPE=wayland
-
-# Wait for drivers and user session to be fully ready
-ExecStartPre=/bin/sleep 5
 
 ExecStart=/usr/bin/cage -- /usr/local/bin/ps4-launch
 Restart=on-failure
 RestartSec=3
 
+# THESE 3 LINES FIX THE SIGHUP CRASH AND TIMEOUT
 StandardInput=tty
 TTYPath=/dev/tty1
+TTYReset=no
+TTYVHangup=no
 
 [Install]
 WantedBy=multi-user.target
