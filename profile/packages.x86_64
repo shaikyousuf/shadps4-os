@@ -42,6 +42,8 @@ man-db
 networkmanager
 iwd
 openssh
+bluez
+bluez-utils
 
 # ── Intel Graphics ──────────────────────────────────────────
 mesa
@@ -72,6 +74,8 @@ mesa-utils
 cage
 qt6-wayland
 xorg-xwayland
+xkeyboard-config
+xorg-setxkbmap
 
 # ── Audio (PipeWire) ────────────────────────────────────────
 pipewire
