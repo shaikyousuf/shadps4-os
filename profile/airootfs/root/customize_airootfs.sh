@@ -10,6 +10,7 @@ systemctl set-default multi-user.target
 systemctl enable nvidia-suspend.service
 systemctl enable nvidia-hibernate.service
 systemctl enable nvidia-resume.service
+systemctl enable bluetooth.service
 
 # Create the ps4 user
 useradd -m -G audio,video,input,render,seat -s /bin/bash ps4
