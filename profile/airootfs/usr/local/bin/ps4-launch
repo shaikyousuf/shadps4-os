@@ -14,6 +14,22 @@ export vblank_mode=0
 
 SHADPS4_BIN="/usr/bin/shadps4"
 
+# --- Pre-configure shadPS4 Game Path ---
+CONFIG_DIR="/home/ps4/.local/share/shadPS4"
+CONFIG_FILE="$CONFIG_DIR/config.toml"
+mkdir -p "$CONFIG_DIR"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Generating default config.toml with game path..."
+    cat <<EOF > "$CONFIG_FILE"
+[General]
+Fullscreen = true
+isNeo = false
+
+[GUI]
+gamedirs = ["/mnt/games/PS4"]
+EOF
+fi
+
 # --- Logging Directory Setup ---
 LOG_DIR="/var/log/shadps4"
 if mountpoint -q /mnt/games || [ -d "/mnt/games" ]; then
