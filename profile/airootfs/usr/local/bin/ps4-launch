@@ -1,21 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-# --- Wayland Variables ---
 export XDG_RUNTIME_DIR=/run/user/1000
-# Tell shadps4 exactly which socket to connect to
-export WAYLAND_DISPLAY=wayland-0
-export QT_QPA_PLATFORM=wayland
-export SDL_VIDEODRIVER=wayland
 
 SHADPS4_BIN="/usr/bin/shadps4"
-
-# --- Pre-configure shadPS4 Game Path ---
 CONFIG_DIR="/home/ps4/.local/share/shadPS4"
 CONFIG_FILE="$CONFIG_DIR/config.toml"
+
 mkdir -p "$CONFIG_DIR"
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Generating default config.toml..."
     cat <<EOF > "$CONFIG_FILE"
 [General]
 Fullscreen = true
@@ -26,23 +19,9 @@ gamedirs = ["/mnt/games/PS4"]
 EOF
 fi
 
-# --- Logging Directory Setup ---
-LOG_DIR="/var/log/shadps4"
-if mountpoint -q /mnt/games || [ -d "/mnt/games" ]; then
-    LOG_DIR="/mnt/games/logs"
-fi
-mkdir -p "$LOG_DIR" 2>/dev/null || true
-LOG_FILE="$LOG_DIR/crash_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="/var/log/shadps4/crash_$(date +%Y%m%d_%H%M%S).log"
+mkdir -p /var/log/shadps4
 
-if [[ ! -x "$SHADPS4_BIN" ]]; then
-    echo "Error: shadPS4 executable not found" | tee -a "$LOG_FILE" 2>/dev/null || true
-    exec /bin/bash
-fi
-
-echo "Launching shadPS4 Big Picture (NVIDIA Forced)..."
-set +e
-
-# THE MAGIC FIX: We bypass prime-run and use 'env' to hardcode the NVIDIA variables
 stdbuf -oL -eL env \
     __NV_PRIME_RENDER_OFFLOAD=1 \
     __VK_LAYER_NV_optimus=NVIDIA_only \
@@ -51,9 +30,6 @@ stdbuf -oL -eL env \
     $SHADPS4_BIN -b "$@" 2>&1 | tee -a "$LOG_FILE"
 
 EXIT_CODE=${PIPESTATUS[0]}
-set -e
-
 if [ "$EXIT_CODE" -ne 0 ] && [ "$EXIT_CODE" -ne 130 ]; then
-    echo "❌ shadPS4 crashed with exit code $EXIT_CODE!"
     exec /bin/bash
 fi
