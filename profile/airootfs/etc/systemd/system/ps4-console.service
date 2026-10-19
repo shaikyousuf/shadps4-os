@@ -19,7 +19,6 @@ ExecStart=/usr/bin/cage -- /usr/local/bin/ps4-launch
 Restart=on-failure
 RestartSec=3
 
-# THESE 3 LINES FIX THE SIGHUP CRASH AND TIMEOUT
 StandardInput=tty
 TTYPath=/dev/tty1
 TTYReset=no
