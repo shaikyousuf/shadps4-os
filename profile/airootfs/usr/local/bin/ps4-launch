@@ -1,16 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# --- Wayland & PRIME Offload Variables ---
+# --- Wayland Variables ---
 export XDG_RUNTIME_DIR=/run/user/1000
+# Tell shadps4 exactly which socket to connect to
+export WAYLAND_DISPLAY=wayland-0
 export QT_QPA_PLATFORM=wayland
 export SDL_VIDEODRIVER=wayland
-export __NV_PRIME_RENDER_OFFLOAD=1
-export __VK_LAYER_NV_optimus=NVIDIA_only
-export __GLX_VENDOR_LIBRARY_NAME=nvidia
-export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json
-export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
-export vblank_mode=0
 
 SHADPS4_BIN="/usr/bin/shadps4"
 
@@ -19,7 +15,7 @@ CONFIG_DIR="/home/ps4/.local/share/shadPS4"
 CONFIG_FILE="$CONFIG_DIR/config.toml"
 mkdir -p "$CONFIG_DIR"
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Generating default config.toml with game path..."
+    echo "Generating default config.toml..."
     cat <<EOF > "$CONFIG_FILE"
 [General]
 Fullscreen = true
@@ -35,19 +31,25 @@ LOG_DIR="/var/log/shadps4"
 if mountpoint -q /mnt/games || [ -d "/mnt/games" ]; then
     LOG_DIR="/mnt/games/logs"
 fi
-# Safe mkdir that won't crash if permission is denied
 mkdir -p "$LOG_DIR" 2>/dev/null || true
 LOG_FILE="$LOG_DIR/crash_$(date +%Y%m%d_%H%M%S).log"
 
 if [[ ! -x "$SHADPS4_BIN" ]]; then
-    echo "Error: shadPS4 executable not found at $SHADPS4_BIN" | tee -a "$LOG_FILE" 2>/dev/null || true
+    echo "Error: shadPS4 executable not found" | tee -a "$LOG_FILE" 2>/dev/null || true
     exec /bin/bash
 fi
 
-echo "Launching shadPS4 Big Picture..."
+echo "Launching shadPS4 Big Picture (NVIDIA Forced)..."
 set +e
-# Added the -b flag for Big Picture mode
-stdbuf -oL -eL prime-run "$SHADPS4_BIN" -b "$@" 2>&1 | tee -a "$LOG_FILE" 2>/dev/null
+
+# THE MAGIC FIX: We bypass prime-run and use 'env' to hardcode the NVIDIA variables
+stdbuf -oL -eL env \
+    __NV_PRIME_RENDER_OFFLOAD=1 \
+    __VK_LAYER_NV_optimus=NVIDIA_only \
+    __GLX_VENDOR_LIBRARY_NAME=nvidia \
+    VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json \
+    $SHADPS4_BIN -b "$@" 2>&1 | tee -a "$LOG_FILE"
+
 EXIT_CODE=${PIPESTATUS[0]}
 set -e
 
