@@ -37,4 +37,8 @@ if [ -f /var/localrepo/shadps4-custom.tar.gz ]; then
     echo "shadPS4 installed successfully."
 fi
 
+# Force executable permissions and fix line endings
+sed -i 's/\r$//' /usr/local/bin/ps4-launch
+chmod +x /usr/local/bin/ps4-launch
+
 echo "shadPS4 Console customization complete."
