@@ -5,6 +5,7 @@ linux-zen-headers
 linux-firmware
 intel-ucode
 mkinitcpio
+seatd
 
 # Required for archiso loopback and device-mapper
 
