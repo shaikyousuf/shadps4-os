@@ -18,4 +18,5 @@ file_permissions=(
   ["/root/customize_airootfs.sh"]="0:0:755"
   ["/usr/local/bin/ps4-launch"]="0:0:755"
   ["/usr/lib/systemd/system-sleep/99-nvidia-resume.sh"]="0:0:755"
+  ["/usr/local/bin/ps4-launch"]="0:0:755"
 )
