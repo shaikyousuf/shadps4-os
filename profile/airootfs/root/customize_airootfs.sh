@@ -5,6 +5,8 @@ set -e -u
 systemctl enable NetworkManager
 systemctl enable iwd
 systemctl enable bluetooth.service
+systemctl enable seatd.service
+systemctl mask archinstall.service || true
 
 # MASK archinstall to prevent the blue screen fallback
 systemctl mask archinstall.service || true
