@@ -5,8 +5,8 @@ set -e -u
 useradd -m -g users -G audio,video,input,render,seat,wheel -s /bin/bash ps4
 echo "ps4:ps4" | chpasswd
 
-# 2. Resolve the mkarchiso root node permission issue
-chown -R ps4:ps4 /home/ps4
+# 2. Resolve the mkarchiso root node permission issue (FIXED GROUP)
+chown -R ps4:users /home/ps4
 
 # 3. Global runtime permission assurance
 chmod +x /usr/local/bin/kiosk-loop.sh
@@ -26,7 +26,7 @@ sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 # 6. Symlink GAMES drive and extract shadPS4
 mkdir -p /mnt/games
 ln -sfn /mnt/games /home/ps4/games
-chown -h ps4:ps4 /home/ps4/games
+chown -h ps4:users /home/ps4/games # FIXED GROUP
 
 if [ -f /var/localrepo/shadps4-custom.tar.gz ]; then
     tar -xzf /var/localrepo/shadps4-custom.tar.gz -C /
