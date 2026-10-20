@@ -1,12 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-export XDG_RUNTIME_DIR=/run/user/1000
+# 1. Dynamically target the runtime path allocated by kiosk-loop
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
 
 SHADPS4_BIN="/usr/bin/shadps4"
 CONFIG_DIR="/home/ps4/.local/share/shadPS4"
 CONFIG_FILE="$CONFIG_DIR/config.toml"
 
+# 2. Ensure config directory exists
 mkdir -p "$CONFIG_DIR"
 if [ ! -f "$CONFIG_FILE" ]; then
     cat <<EOF > "$CONFIG_FILE"
@@ -19,17 +21,25 @@ gamedirs = ["/mnt/games/PS4"]
 EOF
 fi
 
-LOG_FILE="/var/log/shadps4/crash_$(date +%Y%m%d_%H%M%S).log"
-mkdir -p /var/log/shadps4
+# 3. Dynamic Log Fallback
+LOG_DIR="/home/ps4/.local/share/shadPS4/logs"
+if mountpoint -q /mnt/games || [ -d "/mnt/games/PS4" ]; then
+    LOG_DIR="/mnt/games/logs"
+fi
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/crash_$(date +%Y%m%d_%H%M%S).log"
 
+# 4. Launch shadPS4 with forced NVIDIA Vulkan offload (Dual ICD mapping)
 stdbuf -oL -eL env \
     __NV_PRIME_RENDER_OFFLOAD=1 \
     __VK_LAYER_NV_optimus=NVIDIA_only \
     __GLX_VENDOR_LIBRARY_NAME=nvidia \
-    VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json \
-    $SHADPS4_BIN -b "$@" 2>&1 | tee -a "$LOG_FILE"
+    VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json:/usr/share/vulkan/icd.d/intel_icd.json \
+    $SHADPS4_BIN -b "$@" 2>&1 | tee -a "$LOG_FILE" || true
 
-EXIT_CODE=${PIPESTATUS[0]}
+# 5. Clean Exit Handover (Quoted array syntax for strict mode)
+EXIT_CODE="${PIPESTATUS[0]}"
 if [ "$EXIT_CODE" -ne 0 ] && [ "$EXIT_CODE" -ne 130 ]; then
-    exec /bin/bash
+    echo "ShadPS4 exited abnormally with code $EXIT_CODE. Handing control back to kiosk-loop."
+    exit "$EXIT_CODE"
 fi

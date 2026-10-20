@@ -1,129 +1,51 @@
-# ── Base System ─────────────────────────────────────────────
 base
 linux-zen
 linux-zen-headers
 linux-firmware
 intel-ucode
 mkinitcpio
-seatd
-
-# Required for archiso loopback and device-mapper
-
-device-mapper
-cryptsetup
-mkinitcpio-archiso
-
-# ── Boot and EFI ────────────────────────────────────────────
-efibootmgr
-dosfstools
-gptfdisk
 syslinux
-
-# ── Filesystem Tools ────────────────────────────────────────
-e2fsprogs
-btrfs-progs
-xfsprogs
-
-# ── Basic Toolchain ─────────────────────────────────────────
-sudo
-vim
-nano
-htop
-git
-wget
-curl
-unzip
-pciutils
-usbutils
-lshw
-less
-man-db
-
-# ── Networking ──────────────────────────────────────────────
+dkms
 networkmanager
 iwd
 openssh
 bluez
 bluez-utils
-
-# ── Intel Graphics ──────────────────────────────────────────
 mesa
 lib32-mesa
 vulkan-intel
-lib32-vulkan-intel
 intel-media-driver
 libva-intel-driver
-libva-utils
-
-# ── NVIDIA Driver (Built into localrepo by GH Action) ───────
 nvidia-580xx-dkms
 nvidia-580xx-utils
 lib32-nvidia-580xx-utils
-nvidia-580xx-settings
-opencl-nvidia-580xx
-nvidia-prime
-
-# ── Vulkan and Graphics Tools ───────────────────────────────
-vulkan-icd-loader
-lib32-vulkan-icd-loader
-vulkan-validation-layers
-vulkan-tools
-vulkan-extra-layers
-mesa-utils
-
-# ── Wayland Compositor ──────────────────────────────────────
 cage
-qt6-wayland
+seatd
 xorg-xwayland
-xkeyboard-config
-xorg-setxkbmap
-
-# ── Audio (PipeWire) ────────────────────────────────────────
+libxkbcommon
 pipewire
 pipewire-alsa
 pipewire-pulse
 pipewire-jack
 wireplumber
-alsa-utils
-alsa-ucm-conf
-pavucontrol
-
-# ── Qt6 (shadPS4 GUI) ───────────────────────────────────────
-qt6-base
-qt6-declarative
-qt6-multimedia
-qt6-tools
-qt6-svg
-qt6-wayland
-qt6-5compat
-
-# ── shadPS4 Runtime Dependencies ────────────────────────────
 sdl2
+sdl3
 openal
-sndio
-libpng
 ffmpeg
 libevdev
-zlib
 openssl
 libedit
-
-# ── Build Tools (Required for DKMS) ─────────────────────────
+qt6-base
+qt6-declarative
+qt6-wayland
+qt6-tools
 base-devel
+cmake
+ninja
 clang
 llvm
 lld
-cmake
-ninja
 pkgconf
-
-# ── Fonts ───────────────────────────────────────────────────
-terminus-font
-noto-fonts
-noto-fonts-emoji
-
-# ── Miscellaneous ───────────────────────────────────────────
-polkit
-brightnessctl
-iptables-nft
-qt6-multimedia-ffmpeg
+device-mapper
+cryptsetup
+mkinitcpio-archiso
