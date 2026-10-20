@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 1. Wait for the GAMES drive to mount (Max 30 seconds)
+# 1. Wait for GAMES drive (Max 30s)
 echo "Waiting for /mnt/games to mount..."
 for i in {1..30}; do
     if mountpoint -q /mnt/games || [ -d "/mnt/games/PS4" ]; then
@@ -10,7 +10,7 @@ for i in {1..30}; do
     sleep 1
 done
 
-# 2. Wait for seatd socket to exist (Max 10 seconds)
+# 2. Wait for seatd socket (Max 10s)
 echo "Waiting for seatd..."
 for i in {1..10}; do
     if [ -S /run/seatd.sock ]; then
@@ -20,28 +20,53 @@ for i in {1..10}; do
     sleep 1
 done
 
-# 3. Force libseat to use the seatd backend
+# 3. Force libseat to use seatd
 export LIBSEAT_BACKEND=seatd
 
-# 4. Ensure Wayland runtime directory exists and is owned by ps4
-export XDG_RUNTIME_DIR=/run/user/1000
-mkdir -p "$XDG_RUNTIME_DIR"
-chown ps4:ps4 "$XDG_RUNTIME_DIR"
-chmod 0700 "$XDG_RUNTIME_DIR"
+# 4. Secure execution runtime path
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+if [ ! -d "$XDG_RUNTIME_DIR" ]; then
+    mkdir -p "$XDG_RUNTIME_DIR"
+    chmod 700 "$XDG_RUNTIME_DIR"
+fi
 
-# 5. Set NVIDIA and Wayland variables
+# 5. Corrected Graphics Execution Variables (Intel for cage)
+export XDG_SESSION_TYPE=wayland
 export QT_QPA_PLATFORM=wayland
 export SDL_VIDEODRIVER=wayland
-export __NV_PRIME_RENDER_OFFLOAD=1
-export __VK_LAYER_NV_optimus=NVIDIA_only
-export __GLX_VENDOR_LIBRARY_NAME=nvidia
-export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json
 
-# 6. Infinite Kiosk Loop
+# 6. Infinite Execution Watchdog with Crash Safeguard
+CRASH_COUNT=0
+
 while true; do
-    echo "Starting shadPS4 Console..."
-    cage -s -- /usr/local/bin/ps4-launch
+    if [ -f "/usr/local/bin/ps4-launch" ]; then
+        echo "Starting shadPS4 Console..."
+        
+        START_TIME=$(date +%s)
+        cage -s -- /usr/local/bin/ps4-launch
+        END_TIME=$(date +%s)
+        RUNTIME=$((END_TIME - START_TIME))
+        
+        if [ "$RUNTIME" -lt 10 ]; then
+            CRASH_COUNT=$((CRASH_COUNT + 1))
+            echo "WARNING: Cage crashed in $RUNTIME seconds. (Crash Count: $CRASH_COUNT/3)"
+        else
+            CRASH_COUNT=0
+        fi
+        
+        if [ "$CRASH_COUNT" -ge 3 ]; then
+            echo "=========================================================="
+            echo "CRITICAL: Cage crashed 3 times rapidly. Loop halted."
+            echo "Switch to TTY2 (Ctrl+Alt+F2) and log in as 'ps4' to debug."
+            echo "Password: ps4"
+            echo "=========================================================="
+            while true; do sleep 3600; done
+        fi
+    else
+        echo "CRITICAL ERROR: /usr/local/bin/ps4-launch missing or unreadable!"
+        while true; do sleep 3600; done
+    fi
     
-    echo "Cage exited. Restarting in 3 seconds..."
+    echo "Cage session exited. Restarting in 3 seconds..."
     sleep 3
 done
