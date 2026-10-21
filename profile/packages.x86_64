@@ -16,9 +16,9 @@ lib32-mesa
 vulkan-intel
 intel-media-driver
 libva-intel-driver
-nvidia-580xx-dkms
-nvidia-580xx-utils
-lib32-nvidia-580xx-utils
+nvidia-dkms
+nvidia-utils
+lib32-nvidia-utils
 cage
 seatd
 xorg-xwayland
