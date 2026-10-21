@@ -49,3 +49,6 @@ pkgconf
 device-mapper
 cryptsetup
 mkinitcpio-archiso
+nvidia-dkms
+nvidia-utils
+lib32-nvidia-utils
